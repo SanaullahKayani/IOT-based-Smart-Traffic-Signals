@@ -1,0 +1,204 @@
+#include <SoftwareSerial.h>
+SoftwareSerial s(D6,D5);
+#include <ESP8266WiFi.h>  // connect your new ESP8266 module to a Wi-Fi network to start sending and receiving data.This library provides ESP8266 specific Wi-Fi routines that we are calling to connect to the network.
+#include <ESP8266WebServer.h> // for handle client request r send data to server
+#include <ArduinoJson.h>
+
+#include <ESP8266HTTPClient.h>  // HTTP Client lib for ESP8266 to send and retrieve information to remote location
+#include <WiFiClient.h>  //Creates a client that can connect to to a specified internet IP address and port as defined in client
+
+//ESP8266WebServer server;
+WiFiServer server(80);  // open port 80 for server connection
+char* ssid = "Sunny";
+char* password = "Sunny789";
+const char* host = "192.168.43.8";
+String get_host = "http://192.168.43.8";
+int swtch[2];
+int mod[2];
+int i=0;
+void setup() {
+  // put your setup code here, to run once:
+  WiFi.begin(ssid,password);
+  Serial.begin(9600);
+  s.begin(9600);
+  while(WiFi.status()!=WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println("");
+  Serial.print("IP Address: ");   
+  Serial.println(WiFi.localIP());
+  while (!Serial) continue;
+//  server.on("/",handleIndex);
+  server.begin();
+
+    swtch[0]=check_status("switch");
+    mod[0]=check_status("mode");
+    swtch[1]=1;
+    mod[1]=1;
+  Send_to_arduino(swtch[1],mod[1]);
+}
+
+void loop() {
+      // put your main code here, to run repeatedly:
+  if( mod[1]!=mod[0]){
+      mod[0]=mod[1];
+     Send_to_arduino(swtch[1],mod[1]); 
+  }
+  if(swtch[1]!=swtch[0]){
+    swtch[0]=swtch[1];
+     Send_to_arduino(swtch[1],mod[1]); 
+  }
+     Serial.print("switch :");
+     Serial.println(swtch[1]);
+     Serial.print("mode :");
+     Serial.println(mod[1]);
+    
+    if(swtch[1]!=1){
+      Serial.println("Switch is off");
+       swtch[1]=check_status("switch");
+       mod[1]=check_status("mode");
+     return;
+  }
+  else if(mod[1]==1){
+    Serial.println("You are in density mode");
+    handleIndex();
+  }
+  else{
+     Serial.println("You are in fix mode");
+  }
+  
+  swtch[1]=check_status("switch");
+  mod[1]=check_status("mode");
+  
+}
+
+void Send_to_arduino(int swtch,int mod){
+   StaticJsonBuffer<300> jsonBuffer;
+   JsonObject& root1 = jsonBuffer.createObject();
+     Serial.print("switch :");
+     Serial.println(swtch);
+     Serial.print("mode :");
+     Serial.println(mod);
+    root1["swtch"] = swtch;
+    root1["mod"] = mod;
+    root1.printTo(s);
+    return;
+}
+
+
+int check_status(String name1){
+  WiFiClient client = server.available();
+ 
+        HTTPClient http;
+        
+        String url = get_host+"/Traffic_Control_room/iot/fetch_phprecord.php?name="+name1;
+        
+        http.begin(url);
+       
+        //GET method
+        int httpCode = http.GET();
+        String payload = http.getString();
+//        Serial.println(payload);
+        if(payload=="1")
+        {  
+//          Serial.println(device_name+" is ON");
+          return 1;
+        }
+        if(payload=="0")
+        {
+//          Serial.println(device_name+" is Off");
+          return 0;
+          }
+        http.end();
+//    return;
+}
+void handleIndex(){
+  Serial.println("handleIndex start");
+  // Send a JSON-formatted request with key "type" and value "request"
+  // then parse the JSON-formatted response with keys "gas" and "distance"
+ StaticJsonBuffer<300> jsonBuffer;
+ // double gas = 0, distance = 0;
+  // Sending the request;
+  // Reading the response
+  boolean messageReady = false;
+  String message = "";
+
+  while(messageReady == false) { // blocking but that's ok
+    if(Serial.available()) {
+      message = Serial.readString();
+      messageReady = true;
+    }
+  }
+   Serial.println(message);
+  // Attempt to deserialize the JSON-formatted message
+  JsonObject& root = jsonBuffer.parseObject(message);
+  if (root == JsonObject::invalid()){
+    Serial.println("Invalid INput :");
+    return;
+  }
+  
+  Serial.println("JSON received and parsed");
+  root.prettyPrintTo(Serial);
+
+  String road_A_strength = root["data1"];
+  String road_B_strength = root["data2"];
+  String road_C_strength = root["data3"];
+  String road_D_strength = root["data4"];
+  String activeRoad=root["activeRoad"];
+//  int emergency=root["emergency"]; // decremment i by one after here if emergency equals 1.
+ 
+  Serial.print("road_A_strength :");
+ Serial.println(road_A_strength);
+
+//   Serial.print("emergency :");
+// Serial.println(emergency);
+
+   Serial.println(("sending to php"));
+  Serial.print("connecting to ");
+    Serial.println(host);
+
+    // Use WiFiClient class to create TCP connections
+    WiFiClient client;
+    const int httpPort = 80;
+    if (!client.connect(host, httpPort)) {
+        Serial.println("connection failed");
+        return;
+    }
+
+ 
+client.println("hello from ESP8266");
+
+
+  HTTPClient http;    //Declare object of class HTTPClient
+
+  String data1,data2, data3,data4,getData, Link;
+  data1=road_A_strength;
+  data2=road_B_strength;
+  data3=road_C_strength;
+  data4=road_D_strength;
+  Serial.print("road_A_strength:");
+ Serial.println(road_A_strength);
+  //GET Data
+//  getData = "?data1=" + data1 + "&data2=" + data2 + "&data3=" + data3 + "&data4=" + data4 + "&activeRoad=" + activeRoad + "&emergency=" + emergency;  //Note "?" added at front
+  getData = "?data1=" + data1 + "&data2=" + data2 + "&data3=" + data3 + "&data4=" + data4 + "&activeRoad=" + activeRoad;
+  Link = get_host+"/Traffic_Control_room/iot/sensor_data_to_mysql.php" + getData;
+  
+  http.begin(Link);     //Specify request destination
+  
+  int httpCode = http.GET();            //Send the request
+  String payload = http.getString();    //Get the response payload
+ 
+  Serial.println(httpCode);   //Print HTTP return code
+  Serial.println(payload);    //Print request response payload
+ 
+  http.end();  //Close connection
+  
+  delay(5000);
+    Serial.println();
+    Serial.println("closing connection");  // http.end();
+
+//  server.send(200,"text/plain",output);//self-comment
+  return;
+}
