@@ -1,0 +1,785 @@
+#include <ArduinoJson.h>
+#include <SoftwareSerial.h>
+//SoftwareSerial s(2,3);//self
+#include <IRremote.h>
+
+int IrReceiverPin = 24;                 // Turn the variable "IrReceiverPin" to pin 12
+IRrecv irrecv(IrReceiverPin);           // create a new instance of "irrecv" and save this instance in variabele "IRrecv"
+decode_results results;  
+
+#define ledA3 13
+#define ledA2 12
+#define ledA1 11
+
+#define ledB3 10
+#define ledB2 9
+#define ledB1 8
+
+#define ledC3 7
+#define ledC2 6
+#define ledC1 5
+
+#define ledD3 4
+#define ledD2 3
+#define ledD1 2
+
+int segPins[] = {51,53,52,50,48,49,43};   // { a b c d e f g . )
+int segPins2[] ={39,45,44,42,40,35,37};
+byte segCode[11][8] = {
+//  a  b  c  d  e  f  g  .
+  { 1, 1, 1, 1, 1, 1, 0, 0},  // 0
+  { 0, 1, 1, 0, 0, 0, 0, 0},  // 1
+  { 1, 1, 0, 1, 1, 0, 1, 0},  // 2
+  { 1, 1, 1, 1, 0, 0, 1, 0},  // 3
+  { 0, 1, 1, 0, 0, 1, 1, 0},  // 4
+  { 1, 0, 1, 1, 0, 1, 1, 0},  // 5
+  { 1, 0, 1, 1, 1, 1, 1, 0},  // 6
+  { 1, 1, 1, 0, 0, 0, 0, 0},  // 7
+  { 1, 1, 1, 1, 1, 1, 1, 0},  // 8
+  { 1, 1, 1, 1, 0, 1, 1, 0},  // 9
+  { 0, 0, 0, 0, 0, 0, 0, 1}   // .
+};
+
+int a1=0, a2=0,a3=0, b1=0, b2=0,b3=0, c1=0, c2=0,c3=0, d1=0, d2=0,d3=0;
+String road_A_strength="no", road_B_strength="no", road_C_strength="no", road_D_strength="no";
+int swtch=0 , mod=0;
+//  int swtch=1,mod=1;
+void setup() {
+  // put your setup code here, to run once:
+  irrecv.enableIRIn();                // start the IR-receiver
+  // put your setup code here, to run once:
+  pinMode(ledA1, OUTPUT);
+  pinMode(ledA2, OUTPUT);
+  pinMode(ledA3, OUTPUT);
+
+  pinMode(ledB1, OUTPUT);
+  pinMode(ledB2, OUTPUT);
+  pinMode(ledB3, OUTPUT);
+
+  pinMode(ledC1, OUTPUT);
+  pinMode(ledC2, OUTPUT);
+  pinMode(ledC3, OUTPUT);
+
+  pinMode(ledD1, OUTPUT);
+  pinMode(ledD2, OUTPUT);
+  pinMode(ledD3, OUTPUT);
+
+  for (int i=0; i < 8; i++) 
+  {
+    pinMode(segPins[i], OUTPUT);
+    pinMode(segPins2[i], OUTPUT);
+  }
+
+    Serial.begin(9600);
+    Serial1.begin(9600);
+    Serial2.begin(9600);
+
+}
+void initialize_ir_sensor(){
+  int a1=0, a2=0,a3=0, b1=0, b2=0,b3=0, c1=0, c2=0,c3=0, d1=0, d2=0,d3=0;
+}
+
+void loop() {   
+  int swtch=1,mod=1;
+//initialize_ir_sensor();   
+//     Receive_Arduino(&swtch,&mod);
+             Serial.print("Switch :");
+            Serial.println("");
+            Serial.print(swtch);
+            Serial.print("   mode :");        
+            Serial.println(mod);
+     if(swtch==1){
+        if(mod==0){
+           Serial.println("fix_mode started");
+          fix_mode();
+            }
+        else{
+          Serial.println("density mode started");
+           String emergency_occur="no";
+           
+           readSensor(&road_A_strength,&road_B_strength,&road_C_strength,&road_D_strength);         
+//          while(a1==0 && a2==0 && a3==0 && b1==0 && b2==0 && b3==0 && c1==0 && c2==0 && c3==0 && d1==0 && d2==0 && d3==0){
+            while(a1==0 && b1==0 && c1==0 && d1==0){
+            no_traffic();
+            send_data("no");
+             readSensor(&road_A_strength,&road_B_strength,&road_C_strength,&road_D_strength);
+          }
+//          else{
+          
+          emergency_occur=chk();
+            if(emergency_occur!="no" && emergency_occur!="road_A"){   //and should  not be equal to Road_A(bcz already road A no occurs)
+              Serial.print("Emergency occur at :");
+              Serial.println(emergency_occur);
+               send_data(emergency_occur);
+              alot_time_emergency(emergency_occur);
+              emergency_occur="no";
+            }
+             Serial.println("Road A value:");
+             Serial.println(road_A_strength);
+//             if(road_A_strength!="no"){
+                 send_data("Road_A");
+//             }
+          roadAopen();
+         
+          emergency_occur=chk();
+           if(emergency_occur!="no" && emergency_occur!="road_B"){
+             Serial.print("Emergency occur at :");
+              Serial.println(emergency_occur);
+              send_data(emergency_occur);
+              alot_time_emergency(emergency_occur);
+               emergency_occur="no";
+            }
+
+           readSensor(&road_A_strength,&road_B_strength,&road_C_strength,&road_D_strength);
+//             if(road_B_strength!="no"){
+                 send_data("Road_B");
+//             }
+           
+          roadBopen();
+          
+          emergency_occur=chk();
+           if(emergency_occur!="no" && emergency_occur!="road_C"){
+            Serial.print("Emergency occur at :");
+              Serial.println(emergency_occur);
+             send_data(emergency_occur);
+              alot_time_emergency(emergency_occur);
+               emergency_occur="no";
+            }
+
+           readSensor(&road_A_strength,&road_B_strength,&road_C_strength,&road_D_strength);
+//           if(road_C_strength!="no"){
+                  send_data("Road_C");
+//             } 
+          roadCopen();
+          
+          emergency_occur=chk();
+           if(emergency_occur!="no" && emergency_occur!="road_D"){
+            Serial.print("Emergency occur at :");
+              Serial.println(emergency_occur);
+             send_data(emergency_occur);
+              alot_time_emergency(emergency_occur);
+               emergency_occur="no";
+            }  
+
+            readSensor(&road_A_strength,&road_B_strength,&road_C_strength,&road_D_strength);
+//          if(road_D_strength!="no"){
+                  send_data("Road_D");
+//             }   
+          roadDopen();
+        }
+     }
+     
+     else{
+      Serial.println("Switch is turned off");
+        digitalWrite(ledA3, LOW);
+        digitalWrite(ledB3, LOW);
+        digitalWrite(ledC3, LOW);
+        digitalWrite(ledD3, LOW);
+          for (int i=0; i < 8; i++)
+          {
+            digitalWrite(segPins[i],LOW);
+            digitalWrite(segPins2[i],LOW);
+          }
+      return;
+     }
+}
+
+void send_data(String activeRoad){
+           StaticJsonBuffer<300> jsonBuffer;
+           JsonObject& root = jsonBuffer.createObject();
+            root["data1"] = road_A_strength;
+            root["data2"] = road_B_strength;
+            root["data3"] = road_C_strength;
+            root["data4"] = road_D_strength;
+            root["activeRoad"] = activeRoad;
+//            root["emergency"] = emergency;
+       
+            root.printTo(Serial1);
+            return;
+}
+
+String chk(){
+    String var="no";
+    if (irrecv.decode(&results)) {
+        Serial.println(results.value, HEX);
+        Serial.println(results.value);
+        irrecv.resume();
+        if(results.value==16722645){
+            Serial.println("Road A");    // Turn LED off
+               var = "Road_A";
+//                return var;
+
+        }
+         else if(results.value==16738455){
+            Serial.println("Road B");    // Turn LED off
+               var = "Road_B";
+//               return var;
+        }
+      else  if(results.value==16754775){
+            Serial.println("Road C");    // Turn LED off
+               var = "Road_C";
+//               return var;
+        }
+        else if(results.value==16714485){
+            Serial.println("Road D");    // Turn LED off
+               var = "Road_D";
+//               return var;
+        }
+       return var;
+    }
+    else{
+      return "no"; 
+    }
+}
+
+int Receive_Arduino(int* swtch,int* mod ){
+//  int swtch=3;
+    StaticJsonBuffer<300> jsonBuffer;
+    JsonObject& root1 = jsonBuffer.parseObject(Serial2);
+    if (root1 == JsonObject::invalid()){
+      Serial.println("invalid Input  :");
+       return;
+    }   
+//    while(!root1.success()){
+//      if (root1 == JsonObject::invalid()){
+//        Serial.print(".");
+//        delay(200);
+//      }
+//    }
+    Serial.println("JSON received and parsed");
+    root1.prettyPrintTo(Serial);
+    *swtch=root1["swtch"];
+    *mod=root1["mod"];
+    Serial.println("---------------------xxxxx--------------------");
+
+}
+
+void  timer(int num){
+ int n1=num%10;
+  int n2=num/10;
+   for (n2; n2 >= 0; n2--) {
+     for (n1; n1 >= 0; n1--) {
+         displayDigit2(n2);
+         displayDigit(n1);
+         delay(1000);
+     }
+     n1=9;
+   }
+}
+
+void displayDigit(int digit)
+{
+  for (int i=0; i < 7; i++)
+  {
+    digitalWrite(segPins[i], segCode[digit][i]);
+  }
+}
+
+void displayDigit2(int digit2)
+{
+  for (int i=0; i < 8; i++)
+  {
+    digitalWrite(segPins2[i], segCode[digit2][i]);
+  }
+}
+
+void readSensor(String* road_A_strength,String* road_B_strength,String* road_C_strength,String* road_D_strength)
+{
+  a1 = analogRead(A11);
+  a2 = analogRead(A10);
+  a3 = analogRead(A9);
+  b1 = analogRead(A7);
+  b2 = analogRead(A8);
+  b3 = analogRead(A6);
+  c1 = analogRead(A5);
+  c2 = analogRead(A3);
+  c3 = analogRead(A4);
+  d1 = analogRead(A0);
+  d2 = analogRead(A1);
+  d3 = analogRead(A2);
+
+  if (a1 < 400) a1 = 1; else a1 = 0; if (a2 < 400) a2 = 1; else a2 = 0; if (a3 < 400) a3 = 1; else a3 = 0;
+  if (b1 < 400) b1 = 1; else b1 = 0; if (b2 < 400) b2 = 1; else b2 = 0; if (b3 < 400) b3 = 1; else b3 = 0;
+  if (c1 < 400) c1 = 1; else c1 = 0; if (c2 < 400) c2 = 1; else c2 = 0; if (c3 < 400) c3 = 1; else c3 = 0;
+  if (d1 < 400) d1 = 1; else d1 = 0; if (d2 < 400) d2 = 1; else d2 = 0; if (d3 < 400) d3 = 1; else d3 = 0;
+
+    if(a1==1 && a2==1 && a3==1){
+      *road_A_strength="high";
+    }
+    else if(a1==1 && a2==1)
+    {
+      *road_A_strength="medium";
+    }
+      else if(a1==1)
+    {
+      *road_A_strength="low";
+    }
+    else{
+       *road_A_strength="no";
+    }
+
+    if(b1==1 && b2==1 && b3==1){
+      *road_B_strength="high";
+    }
+    else if(b1==1 && b2==1)
+    {
+      *road_B_strength="medium";
+    }
+      else if(b1==1)
+    {
+      *road_B_strength="low";
+    }
+    else{
+       *road_B_strength="no";
+    }
+
+    if(c1==1 && c2==1 && c3==1){
+      *road_C_strength="high";
+    }
+    else if(c1==1 && c2==1)
+    {
+      *road_C_strength="medium";
+    }
+      else if(c1==1)
+    {
+      *road_C_strength="low";
+    }
+    else{
+       *road_C_strength="no";
+    }
+
+    if(d1==1 && d2==1 && d3==1){
+      *road_D_strength="high";
+    }
+    else if(d1==1 && d2==1)
+    {
+      *road_D_strength="medium";
+    }
+      else if(d1==1)
+    {
+      *road_D_strength="low";
+    }
+    else{
+       *road_D_strength="no";
+    }
+}
+void no_traffic(){
+  digitalWrite(ledA1, LOW);
+  digitalWrite(ledB1, LOW);
+  digitalWrite(ledC1, LOW);
+  digitalWrite(ledD1, LOW);
+  digitalWrite(ledA3, LOW);
+  digitalWrite(ledB3, LOW);
+  digitalWrite(ledC3, LOW);
+  digitalWrite(ledD3, LOW);
+  
+  digitalWrite(ledA2, HIGH);
+  digitalWrite(ledB2, HIGH);
+  digitalWrite(ledC2, HIGH);
+  digitalWrite(ledD2, HIGH);
+  delay(1000);
+  digitalWrite(ledA2, LOW);
+  digitalWrite(ledB2, LOW);
+  digitalWrite(ledC2, LOW);
+  digitalWrite(ledD2, LOW);
+  delay(1000);
+}
+
+void roadAopen()
+{
+
+Serial.print("road_A_strength");
+Serial.println(road_A_strength);
+  
+  if(road_A_strength=="high")
+  {
+     digitalWrite(ledA3, LOW);
+
+    digitalWrite(ledA1, HIGH);
+    digitalWrite(ledB3, HIGH);
+    digitalWrite(ledC3, HIGH);
+    digitalWrite(ledD3, HIGH);
+//    delay(10000);
+    timer(12);
+    digitalWrite(ledA1, LOW);
+    digitalWrite(ledA2, HIGH);
+    delay(1000);
+    digitalWrite(ledA2, LOW);
+//    *road_A_strength="high";
+    
+  }
+
+  else if(road_A_strength=="medium")
+  {
+     digitalWrite(ledA3, LOW);
+
+    digitalWrite(ledA1, HIGH);
+    digitalWrite(ledB3, HIGH);
+    digitalWrite(ledC3, HIGH);
+    digitalWrite(ledD3, HIGH);
+//    delay(5000);
+    timer(9);
+    digitalWrite(ledA1, LOW);
+    digitalWrite(ledA2, HIGH);
+    delay(1000);
+    digitalWrite(ledA2, LOW);
+//    *road_A_strength="medium";
+  }
+
+    else if(road_A_strength=="low")
+  {
+     digitalWrite(ledA3, LOW);
+
+    digitalWrite(ledA1, HIGH);
+    digitalWrite(ledB3, HIGH);
+    digitalWrite(ledC3, HIGH);
+    digitalWrite(ledD3, HIGH);
+//    delay(1000);
+    timer(6);
+    digitalWrite(ledA1, LOW);
+    digitalWrite(ledA2, HIGH);
+    delay(1000);
+    digitalWrite(ledA2, LOW);
+//    *road_A_strength="low";
+  }
+   else if(road_A_strength=="no")
+  {
+     digitalWrite(ledA3, LOW);
+
+    digitalWrite(ledA1, HIGH);
+    digitalWrite(ledB3, HIGH);
+    digitalWrite(ledC3, HIGH);
+    digitalWrite(ledD3, HIGH);
+//    delay(1000);
+    timer(0);
+    digitalWrite(ledA1, LOW);
+    digitalWrite(ledA2, HIGH);
+    delay(1000);
+    digitalWrite(ledA2, LOW);
+//    *road_A_strength="low";
+  }
+  
+//   readSensor();
+   return;
+}
+
+void roadBopen()
+{
+  if(road_B_strength=="high"){
+   digitalWrite(ledB3, LOW);
+
+    digitalWrite(ledA3, HIGH);
+    digitalWrite(ledB1, HIGH);
+    digitalWrite(ledC3, HIGH);
+    digitalWrite(ledD3, HIGH);
+//    delay(10000);
+    timer(12);
+    digitalWrite(ledB1, LOW);
+    digitalWrite(ledB2, HIGH);
+    delay(1000);
+    digitalWrite(ledB2, LOW);
+
+//    *road_B_strength="high";
+//    readSensor();
+ }
+  
+ else if(road_B_strength=="medium"){
+     digitalWrite(ledB3, LOW);
+
+    digitalWrite(ledA3, HIGH);
+    digitalWrite(ledB1, HIGH);
+    digitalWrite(ledC3, HIGH);
+    digitalWrite(ledD3, HIGH);
+//    delay(5000);
+      timer(9);
+    digitalWrite(ledB1, LOW);
+    digitalWrite(ledB2, HIGH);
+    delay(1000);
+    digitalWrite(ledB2, LOW);
+
+//    *road_B_strength="medium";
+//    readSensor();
+  }
+else if(road_B_strength=="low"){
+     digitalWrite(ledB3, LOW);
+
+    digitalWrite(ledA3, HIGH);
+    digitalWrite(ledB1, HIGH);
+    digitalWrite(ledC3, HIGH);
+    digitalWrite(ledD3, HIGH);
+//    delay(1000);
+      timer(6);
+    digitalWrite(ledB1, LOW);
+    digitalWrite(ledB2, HIGH);
+    delay(1000);
+    digitalWrite(ledB2, LOW);
+
+//    *road_B_strength="low";
+//    readSensor();
+    return;
+  }
+  else{
+     digitalWrite(ledB3, LOW);
+
+    digitalWrite(ledA3, HIGH);
+    digitalWrite(ledB1, HIGH);
+    digitalWrite(ledC3, HIGH);
+    digitalWrite(ledD3, HIGH);
+//    delay(1000);
+      timer(0);
+    digitalWrite(ledB1, LOW);
+    digitalWrite(ledB2, HIGH);
+    delay(1000);
+    digitalWrite(ledB2, LOW);
+
+//    *road_B_strength="low";
+//    readSensor();
+    return;
+  }
+}
+
+
+void roadCopen()
+{
+ if(road_C_strength=="high"){
+     digitalWrite(ledC3, LOW);
+
+  digitalWrite(ledA3, HIGH);
+  digitalWrite(ledB3, HIGH);
+  digitalWrite(ledC1, HIGH);
+  digitalWrite(ledD3, HIGH);
+//  delay(10000);
+    timer(12);
+  digitalWrite(ledC1, LOW);
+  digitalWrite(ledC2, HIGH);
+  delay(1000);
+  digitalWrite(ledC2, LOW);
+
+// *road_C_strength="high";
+  }
+
+  else if(road_C_strength=="medium")
+  {
+     digitalWrite(ledC3, LOW);
+
+  digitalWrite(ledA3, HIGH);
+  digitalWrite(ledB3, HIGH);
+  digitalWrite(ledC1, HIGH);
+  digitalWrite(ledD3, HIGH);
+//  delay(5000);
+    timer(9);
+  digitalWrite(ledC1, LOW);
+  digitalWrite(ledC2, HIGH);
+  delay(1000);
+  digitalWrite(ledC2, LOW);
+
+//   *road_C_strength="medium";
+  }
+
+   else  if(road_C_strength=="low")
+  {
+     digitalWrite(ledC3, LOW);
+
+  digitalWrite(ledA3, HIGH);
+  digitalWrite(ledB3, HIGH);
+  digitalWrite(ledC1, HIGH);
+  digitalWrite(ledD3, HIGH);
+//  delay(1000);
+    timer(6);
+  digitalWrite(ledC1, LOW);
+  digitalWrite(ledC2, HIGH);
+  delay(1000);
+  digitalWrite(ledC2, LOW);
+
+//   *road_C_strength="low";
+  }
+   else
+  {
+     digitalWrite(ledC3, LOW);
+
+  digitalWrite(ledA3, HIGH);
+  digitalWrite(ledB3, HIGH);
+  digitalWrite(ledC1, HIGH);
+  digitalWrite(ledD3, HIGH);
+//  delay(1000);
+    timer(0);
+  digitalWrite(ledC1, LOW);
+  digitalWrite(ledC2, HIGH);
+  delay(1000);
+  digitalWrite(ledC2, LOW);
+
+//   *road_C_strength="low";
+  }
+  
+//   readSensor();
+   return;
+}
+
+void roadDopen()
+{
+  if(road_D_strength=="high"){
+   digitalWrite(ledD3, LOW);
+
+  digitalWrite(ledA3, HIGH);
+  digitalWrite(ledB3, HIGH);
+  digitalWrite(ledC3, HIGH);
+  digitalWrite(ledD1, HIGH);
+//  delay(10000);
+    timer(12);
+  digitalWrite(ledD1, LOW);
+  digitalWrite(ledD2, HIGH);
+  delay(1000);
+  digitalWrite(ledD2, LOW);
+  
+//   *road_D_strength="high";
+ }
+  
+ else if(road_D_strength=="medium"){
+     digitalWrite(ledD3, LOW);
+
+  digitalWrite(ledA3, HIGH);
+  digitalWrite(ledB3, HIGH);
+  digitalWrite(ledC3, HIGH);
+  digitalWrite(ledD1, HIGH);
+//  delay(5000);
+ timer(9);
+  digitalWrite(ledD1, LOW);
+  digitalWrite(ledD2, HIGH);
+  delay(1000);
+  digitalWrite(ledD2, LOW);
+
+//  *road_D_strength="medium";
+  }
+else if(road_D_strength=="low"){
+    digitalWrite(ledD3, LOW);
+
+  digitalWrite(ledA3, HIGH);
+  digitalWrite(ledB3, HIGH);
+  digitalWrite(ledC3, HIGH);
+  digitalWrite(ledD1, HIGH);
+//  delay(1000);
+    timer(6);
+  digitalWrite(ledD1, LOW);
+  digitalWrite(ledD2, HIGH);
+  delay(1000);
+    digitalWrite(ledD3, HIGH);
+  digitalWrite(ledD2, LOW);
+
+
+//  *road_D_strength="low";
+    
+  }
+  else{
+    digitalWrite(ledD3, LOW);
+
+  digitalWrite(ledA3, HIGH);
+  digitalWrite(ledB3, HIGH);
+  digitalWrite(ledC3, HIGH);
+  digitalWrite(ledD1, HIGH);
+//  delay(1000);
+    timer(0);
+  digitalWrite(ledD1, LOW);
+  digitalWrite(ledD2, HIGH);
+  delay(1000);
+    digitalWrite(ledD3, HIGH);
+  digitalWrite(ledD2, LOW);
+
+
+//  *road_D_strength="low";
+    
+  }
+//  readSensor();
+  return;
+}
+
+void  alot_time_emergency(String roadEmergency) {
+    if(roadEmergency=="Road_A"){
+      Road_a();
+      return;
+    }
+     else if(roadEmergency=="Road_B"){
+      Road_b();
+      return;
+    }
+     else if(roadEmergency=="Road_C"){
+      Road_c();
+      return;
+    }
+    else  if(roadEmergency=="Road_D"){
+      Road_d();
+      return;
+    }
+    else{
+      return;
+    }
+    return;
+}
+
+
+void fix_mode(){
+  Road_a();
+  Road_b();
+  Road_c();
+  Road_d();
+}
+void Road_a(){
+  digitalWrite(ledA3, LOW);
+
+    digitalWrite(ledA1, HIGH);
+    digitalWrite(ledB3, HIGH);
+    digitalWrite(ledC3, HIGH);
+    digitalWrite(ledD3, HIGH);
+    delay(3000);
+     timer(5);
+    digitalWrite(ledA1, LOW);
+    digitalWrite(ledA2, HIGH);
+    delay(1000);
+    digitalWrite(ledA2, LOW);
+    return;
+}
+void   Road_b(){
+  digitalWrite(ledB3, LOW);
+
+    digitalWrite(ledA3, HIGH);
+    digitalWrite(ledB1, HIGH);
+    digitalWrite(ledC3, HIGH);
+    digitalWrite(ledD3, HIGH);
+//    delay(3000);
+    timer(5);
+    digitalWrite(ledB1, LOW);
+    digitalWrite(ledB2, HIGH);
+    delay(1000);
+    digitalWrite(ledB2, LOW);
+    return;
+}
+void Road_c(){
+  digitalWrite(ledC3, LOW);
+
+  digitalWrite(ledA3, HIGH);
+  digitalWrite(ledB3, HIGH);
+  digitalWrite(ledC1, HIGH);
+  digitalWrite(ledD3, HIGH);
+//  delay(3000);
+    timer(5);
+  digitalWrite(ledC1, LOW);
+  digitalWrite(ledC2, HIGH);
+  delay(1000);
+  digitalWrite(ledC2, LOW);
+  return;
+}
+void Road_d(){
+  digitalWrite(ledD3, LOW);
+
+  digitalWrite(ledA3, HIGH);
+  digitalWrite(ledB3, HIGH);
+  digitalWrite(ledC3, HIGH);
+  digitalWrite(ledD1, HIGH);
+//  delay(3000);
+    timer(5);
+  digitalWrite(ledD1, LOW);
+  digitalWrite(ledD2, HIGH);
+  delay(1000);
+  digitalWrite(ledD2, LOW);
+  digitalWrite(ledD3, HIGH);
+  return;
+}
